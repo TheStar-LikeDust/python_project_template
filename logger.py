@@ -12,17 +12,8 @@ Demo:
     import logger
 
     # default
-    LOGGER = logger.build_logger('testlogger', level=logging.DEBUG, stream_handler=True, file_handler=False)
-
-    # custom
-
-
-
+    _logger = logger.build_logger('testlogger')
     ```
-
-
-
-
 
 """
 import logging

@@ -11,12 +11,17 @@ Demo:
     ```python
     import logger
 
-    # default
+    # minial
     _logger = logger.build_logger('testlogger')
+
+    # with file handler
+    _logger = logger.build_logger('default', file_handler=True)
     ```
 
 """
 import logging
+import os
+import warnings
 
 LOGGER_CURRENT_MSG_FORMATTER = '%(asctime)s | (%(name)s) [%(levelname)s] %(message)s'
 """str: current message formatter"""
@@ -29,8 +34,8 @@ LOGGER_FORMATTER = logging.Formatter(LOGGER_CURRENT_MSG_FORMATTER, LOGGER_CURREN
 # handler mark
 LOGGER_STREAM_HANDLER_MARK = 'logger_stream'
 
-LOGGER_FILE_FOLDER = 'log'
-"""str: logger file folder"""
+LOGGER_FILE_FOLDER = 'output'
+"""str: logger file folder. will be created by os.makedirs"""
 
 
 def get_logger_file_path(logger_name):
@@ -66,8 +71,7 @@ def add_stream_handler(
     logger = logging.getLogger(looger_name)
     stream_handler = logging.StreamHandler()
     stream_handler.name = LOGGER_STREAM_HANDLER_MARK
-    stream_handler_formatter = logging.Formatter(handler_formatter_str, handler_time_formatter_str)
-    stream_handler.setFormatter(stream_handler_formatter)
+    stream_handler.setFormatter(logging.Formatter(handler_formatter_str, handler_time_formatter_str))
     stream_handler.setLevel(handler_level)
 
     if not unique_handler or not mark_handler_check(logger, logging.StreamHandler):
@@ -83,16 +87,20 @@ def add_file_handler(
         file_handler_mode: str = 'a',
         unique_handler: bool = True,
 ):
-    logger = logging.getLogger(logger_name)
-    file_name = file_handler_filename or logger_name
-    file_handler = logging.FileHandler(get_logger_file_path(file_name), mode=file_handler_mode, encoding='utf-8')
-    file_handler.name = LOGGER_STREAM_HANDLER_MARK
-    file_handler_formatter = logging.Formatter(handler_formatter_str, handler_time_formatter_str)
-    file_handler.setFormatter(file_handler_formatter)
-    file_handler.setLevel(handler_level)
+    file_path = get_logger_file_path(file_handler_filename or logger_name)
 
-    if not unique_handler or not mark_handler_check(logger, logging.FileHandler):
-        logger.addHandler(file_handler)
+    try:
+        logger = logging.getLogger(logger_name)
+        file_handler = logging.FileHandler(file_path, mode=file_handler_mode, encoding='utf-8')
+        file_handler.name = LOGGER_STREAM_HANDLER_MARK
+        file_handler.setFormatter(logging.Formatter(handler_formatter_str, handler_time_formatter_str))
+        file_handler.setLevel(handler_level)
+
+        if not unique_handler or not mark_handler_check(logger, logging.FileHandler):
+            logger.addHandler(file_handler)
+    except FileNotFoundError:
+        # warning
+        warnings.warn(f'cannot create file handler in path: <{file_path}>')
 
 
 def build_logger(logger_name: str,
@@ -116,5 +124,8 @@ def build_logger(logger_name: str,
     return logger
 
 
+os.makedirs(LOGGER_FILE_FOLDER, exist_ok=True)
+
 if __name__ == '__main__':
-    build_logger('testlogger').info('test')
+    build_logger('testlogger').info('testlogger')
+    build_logger('test_file_logger', file_handler=True).info('test_file_logger')

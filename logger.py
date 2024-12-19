@@ -2,11 +2,10 @@
 """A basic logger module base on logging
 
 feature:
-1. build logger in single function
-2. stream/file handler
+1. build logger in one function
+2. set stream/file handler
 
-
-Demo:
+Usage:
 
     ```python
     import logger
@@ -32,17 +31,13 @@ LOGGER_FORMATTER = logging.Formatter(LOGGER_CURRENT_MSG_FORMATTER, LOGGER_CURREN
 """logging.Formatter: logger formatter"""
 
 # handler mark
-LOGGER_STREAM_HANDLER_MARK = 'logger_stream'
+LOGGER_STREAM_HANDLER_MARK = 'unique_logger_content'
 
 LOGGER_FILE_FOLDER = 'output'
 """str: logger file folder. will be created by os.makedirs"""
 
 
-def get_logger_file_path(logger_name):
-    return f'{LOGGER_FILE_FOLDER}/{logger_name}.log'
-
-
-def mark_handler_check(logger: logging.Logger, handler_type: """type(logging.Handler)""" = logging.Handler) -> bool:
+def unique_handler_check(logger: logging.Logger, handler_type: """type(logging.Handler)""" = logging.Handler) -> bool:
     """check if the logger has the mark handler.
 
     The build handler will be marked by LOGGER_STREAM_HANDLER_MARK
@@ -74,7 +69,7 @@ def add_stream_handler(
     stream_handler.setFormatter(logging.Formatter(handler_formatter_str, handler_time_formatter_str))
     stream_handler.setLevel(handler_level)
 
-    if not unique_handler or not mark_handler_check(logger, logging.StreamHandler):
+    if not unique_handler or not unique_handler_check(logger, logging.StreamHandler):
         logger.addHandler(stream_handler)
 
 
@@ -87,7 +82,7 @@ def add_file_handler(
         file_handler_mode: str = 'a',
         unique_handler: bool = True,
 ):
-    file_path = get_logger_file_path(file_handler_filename or logger_name)
+    file_path = f'{LOGGER_FILE_FOLDER}/{file_handler_filename or logger_name}.log'
 
     try:
         logger = logging.getLogger(logger_name)
@@ -96,7 +91,7 @@ def add_file_handler(
         file_handler.setFormatter(logging.Formatter(handler_formatter_str, handler_time_formatter_str))
         file_handler.setLevel(handler_level)
 
-        if not unique_handler or not mark_handler_check(logger, logging.FileHandler):
+        if not unique_handler or not unique_handler_check(logger, logging.FileHandler):
             logger.addHandler(file_handler)
     except FileNotFoundError:
         # warning

@@ -34,7 +34,7 @@ LOGGER_FORMATTER = logging.Formatter(LOGGER_CURRENT_MSG_FORMATTER, LOGGER_CURREN
 LOGGER_STREAM_HANDLER_MARK = 'unique_logger_content'
 
 LOGGER_FILE_FOLDER = 'output'
-"""str: logger file folder. will be created by os.makedirs"""
+"""str: logger file folder. will be created by os.makedirs when needed"""
 
 
 def unique_handler_check(logger: logging.Logger, handler_type: """type(logging.Handler)""" = logging.Handler) -> bool:
@@ -82,6 +82,9 @@ def add_file_handler(
         file_handler_mode: str = 'a',
         unique_handler: bool = True,
 ):
+    # Create output directory only when file handler is actually needed
+    os.makedirs(LOGGER_FILE_FOLDER, exist_ok=True)
+
     file_path = f'{LOGGER_FILE_FOLDER}/{file_handler_filename or logger_name}.log'
 
     try:
@@ -118,8 +121,6 @@ def build_logger(logger_name: str,
 
     return logger
 
-
-os.makedirs(LOGGER_FILE_FOLDER, exist_ok=True)
 
 if __name__ == '__main__':
     build_logger('testlogger').info('testlogger')

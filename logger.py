@@ -20,7 +20,6 @@ Usage:
 """
 import logging
 import os
-import warnings
 
 LOGGER_CURRENT_MSG_FORMATTER = '%(asctime)s | (%(name)s) [%(levelname)s] %(message)s'
 """str: current message formatter"""
@@ -30,14 +29,19 @@ LOGGER_CURRENT_TIME_FORMATTER = '%Y-%m-%d %H:%M:%S'
 LOGGER_FORMATTER = logging.Formatter(LOGGER_CURRENT_MSG_FORMATTER, LOGGER_CURRENT_TIME_FORMATTER)
 """logging.Formatter: logger formatter"""
 
-# handler mark
-LOGGER_STREAM_HANDLER_MARK = 'unique_logger_content'
+LOGGER_STREAM_HANDLER_MARK = 'logger_stream'
+"""str: special mark for stream handler"""
 
+# logger path
 LOGGER_FILE_FOLDER = 'output'
-"""str: logger file folder. will be created by os.makedirs"""
+LOGGER_FILE_FOLDER_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), *['..' for i in range(2)]))
 
 
-def unique_handler_check(logger: logging.Logger, handler_type: """type(logging.Handler)""" = logging.Handler) -> bool:
+def get_logger_file_path(logger_name):
+    return f'{LOGGER_FILE_FOLDER}/{logger_name}.log'
+
+
+def mark_handler_check(logger: logging.Logger, handler_type: """type(logging.Handler)""" = logging.Handler) -> bool:
     """check if the logger has the mark handler.
 
     The build handler will be marked by LOGGER_STREAM_HANDLER_MARK
@@ -66,10 +70,11 @@ def add_stream_handler(
     logger = logging.getLogger(looger_name)
     stream_handler = logging.StreamHandler()
     stream_handler.name = LOGGER_STREAM_HANDLER_MARK
-    stream_handler.setFormatter(logging.Formatter(handler_formatter_str, handler_time_formatter_str))
+    stream_handler_formatter = logging.Formatter(handler_formatter_str, handler_time_formatter_str)
+    stream_handler.setFormatter(stream_handler_formatter)
     stream_handler.setLevel(handler_level)
 
-    if not unique_handler or not unique_handler_check(logger, logging.StreamHandler):
+    if not unique_handler or not mark_handler_check(logger, logging.StreamHandler):
         logger.addHandler(stream_handler)
 
 
@@ -82,20 +87,24 @@ def add_file_handler(
         file_handler_mode: str = 'a',
         unique_handler: bool = True,
 ):
-    file_path = f'{LOGGER_FILE_FOLDER}/{file_handler_filename or logger_name}.log'
+    # create output folder
+    if not os.path.exists(LOGGER_FILE_FOLDER_PATH):
+        print(f'Create folder: <{LOGGER_FILE_FOLDER_PATH}>')
+        os.makedirs(LOGGER_FILE_FOLDER_PATH, exist_ok=True)
 
-    try:
+    if os.path.exists(os.path.dirname(get_logger_file_path(logger_name))):
         logger = logging.getLogger(logger_name)
-        file_handler = logging.FileHandler(file_path, mode=file_handler_mode, encoding='utf-8')
+        file_name = file_handler_filename or logger_name
+        file_handler = logging.FileHandler(get_logger_file_path(file_name), mode=file_handler_mode, encoding='utf-8')
         file_handler.name = LOGGER_STREAM_HANDLER_MARK
-        file_handler.setFormatter(logging.Formatter(handler_formatter_str, handler_time_formatter_str))
+        file_handler_formatter = logging.Formatter(handler_formatter_str, handler_time_formatter_str)
+        file_handler.setFormatter(file_handler_formatter)
         file_handler.setLevel(handler_level)
 
-        if not unique_handler or not unique_handler_check(logger, logging.FileHandler):
+        if not unique_handler or not mark_handler_check(logger, logging.FileHandler):
             logger.addHandler(file_handler)
-    except FileNotFoundError:
-        # warning
-        warnings.warn(f'cannot create file handler in path: <{file_path}>')
+    else:
+        print('No file handler.')
 
 
 def build_logger(logger_name: str,
@@ -117,9 +126,6 @@ def build_logger(logger_name: str,
         add_file_handler(logger_name, **file_handler_kwargs)
 
     return logger
-
-
-os.makedirs(LOGGER_FILE_FOLDER, exist_ok=True)
 
 if __name__ == '__main__':
     build_logger('testlogger').info('testlogger')

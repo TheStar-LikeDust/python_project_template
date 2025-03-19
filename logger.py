@@ -34,11 +34,12 @@ LOGGER_STREAM_HANDLER_MARK = 'logger_stream'
 
 # logger path
 LOGGER_FILE_FOLDER = 'output'
-LOGGER_FILE_FOLDER_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), *['..' for i in range(2)]))
+LOGGER_WORKING_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), *['..' for i in range(2)]))
+LOGGER_FILE_FOLDER_PATH = os.path.join(LOGGER_WORKING_PATH, LOGGER_FILE_FOLDER)
 
 
 def get_logger_file_path(logger_name):
-    return f'{LOGGER_FILE_FOLDER}/{logger_name}.log'
+    return os.path.join(LOGGER_FILE_FOLDER_PATH, f'{logger_name}.log')
 
 
 def mark_handler_check(logger: logging.Logger, handler_type: """type(logging.Handler)""" = logging.Handler) -> bool:
@@ -87,11 +88,6 @@ def add_file_handler(
         file_handler_mode: str = 'a',
         unique_handler: bool = True,
 ):
-    # create output folder
-    if not os.path.exists(LOGGER_FILE_FOLDER_PATH):
-        print(f'Create folder: <{LOGGER_FILE_FOLDER_PATH}>')
-        os.makedirs(LOGGER_FILE_FOLDER_PATH, exist_ok=True)
-
     if os.path.exists(os.path.dirname(get_logger_file_path(logger_name))):
         logger = logging.getLogger(logger_name)
         file_name = file_handler_filename or logger_name
@@ -126,6 +122,18 @@ def build_logger(logger_name: str,
         add_file_handler(logger_name, **file_handler_kwargs)
 
     return logger
+
+# auto create logger
+if not os.path.exists(LOGGER_FILE_FOLDER_PATH):
+    try:
+        os.makedirs(LOGGER_FILE_FOLDER_PATH, exist_ok=True)
+    except Exception as e:
+        print(f'Failed to create folder: <{LOGGER_FILE_FOLDER_PATH}>')
+        print(e)
+    else:
+        print(f'Create folder: <{LOGGER_FILE_FOLDER_PATH}>')
+
+DEFAULT_LOGGER = build_logger('default')
 
 if __name__ == '__main__':
     build_logger('testlogger').info('testlogger')

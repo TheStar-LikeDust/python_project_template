@@ -10,6 +10,9 @@ SETTING_ITEM_2 = "test_content"
 SETTING_ITEM_3 = "test_content"
 """docstring here"""
 
+ROOT_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), *['..' for i in range(2)]))
+"""Fixed root path. Change the number in range to adjust the path"""
+
 
 def settings_load_env(dotenv_path):
     import os

@@ -2,7 +2,7 @@
 """A basic logger module base on logging
 
 feature:
-1. build logger in one function
+1. build logger in single function
 2. set stream/file handler
 
 Usage:
@@ -20,26 +20,25 @@ Usage:
 """
 import logging
 import os
-import warnings
 
+#  --- logging configuration ---
 LOGGER_CURRENT_MSG_FORMATTER = '%(asctime)s | (%(name)s) [%(levelname)s] %(message)s'
-"""str: current message formatter"""
 LOGGER_CURRENT_TIME_FORMATTER = '%Y-%m-%d %H:%M:%S'
-"""str: current time formatter"""
+# --- end logging configuration ---
 
-LOGGER_FORMATTER = logging.Formatter(LOGGER_CURRENT_MSG_FORMATTER, LOGGER_CURRENT_TIME_FORMATTER)
-"""logging.Formatter: logger formatter"""
 
-# handler mark
-LOGGER_STREAM_HANDLER_MARK = 'unique_logger_content'
-
-# logger path
+# --- file handler configuration ---
 LOGGER_FILE_FOLDER_NAME = 'output'
-LOGGER_ROOT_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), *['..' for i in range(0)]))
+LOGGER_FILE_ROOT_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), *['..' for i in range(0)]))
+# --- end file handler configuration ---
 
-LOGGER_FILE_FOLDER_PATH = os.path.join(LOGGER_ROOT_PATH, LOGGER_FILE_FOLDER_NAME)
-"""str: logger file folder. will be created by os.makedirs when needed"""
+# --- logger module configuration ---
+LOGGER_STREAM_HANDLER_MARK = 'unique_logger_content'
+LOGGER_FILE_FOLDER_PATH = os.path.join(LOGGER_FILE_ROOT_PATH, LOGGER_FILE_FOLDER_NAME)
+LOGGER_FORMATTER = logging.Formatter(LOGGER_CURRENT_MSG_FORMATTER, LOGGER_CURRENT_TIME_FORMATTER)
 
+
+# --- logger function ---
 
 def get_logger_file_path(logger_name):
     return os.path.join(LOGGER_FILE_FOLDER_PATH, f'{logger_name}.log')
@@ -125,6 +124,7 @@ def build_logger(logger_name: str,
         add_file_handler(logger_name, **file_handler_kwargs)
 
     return logger
+
 
 # auto create logger
 if not os.path.exists(LOGGER_FILE_FOLDER_PATH):

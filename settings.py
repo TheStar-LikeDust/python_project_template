@@ -1,5 +1,6 @@
 # coding: utf-8
 import os
+import sys
 
 # settings item here
 
@@ -18,6 +19,7 @@ def _settings_load_env(dotenv_path):
     import os
     import dotenv
 
+    # TODO: case for without dotenv
     dotenv.load_dotenv(dotenv_path=dotenv_path)
 
     for setting_item_name in globals().keys():
@@ -27,3 +29,6 @@ def _settings_load_env(dotenv_path):
 
 # auto load
 _settings_load_env(os.environ.get('ENV_PATH'))
+
+# auto add root path
+sys.path.append(ROOT_PATH)

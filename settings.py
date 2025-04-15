@@ -14,7 +14,7 @@ ROOT_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), *['..' for 
 """Fixed root path. Change the number in range to adjust the path"""
 
 
-def settings_load_env(dotenv_path):
+def _settings_load_env(dotenv_path):
     import os
     import dotenv
 
@@ -26,4 +26,4 @@ def settings_load_env(dotenv_path):
 
 
 # auto load
-settings_load_env(os.environ.get('ENV_PATH'))
+_settings_load_env(os.environ.get('ENV_PATH'))

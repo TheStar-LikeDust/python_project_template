@@ -11,14 +11,13 @@ Auto-detects caller module for organized file structure
 File Naming Convention:
 - Example files: example_{feature}.py
 - Function name: {feature}_main()
-- Input template: data_input/example_{feature}.json.template
+- Input data: data_input/example_{feature}.json
 - Local input: data_input_local/example_{feature}.json
 - Output: data_output/example_{feature}_{timestamp}.json
 
 Test Data Convention:
-- Template files use .json.template suffix (git tracked)
-- Template contains empty/placeholder values
-- Local files are .json (git ignored, user fills actual values)
+- Input files are .json (git tracked, empty values)
+- Local files are .json (git ignored, actual values)
 - All JSON files use 2-space indentation
 - Keep test data minimal and focused
 """
@@ -40,6 +39,22 @@ OUTPUT_DIR = TESTS_ROOT / "data_output"
 
 # Module level argument cache
 _parsed_args = None
+
+
+def _ensure_directories():
+    """Create required directories with .gitkeep on module import"""
+    INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    INPUT_LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Add .gitkeep to track empty directories
+    gitkeep_input = INPUT_DIR / ".gitkeep"
+    if not gitkeep_input.exists():
+        gitkeep_input.touch()
+
+
+# Auto-initialize directories when module is imported
+_ensure_directories()
 
 
 def _get_cli_args() -> argparse.Namespace:
@@ -67,11 +82,20 @@ def _get_caller_info() -> str:
         module_name e.g., "example_action_studio_login"
     """
     frame = inspect.currentframe()
-    caller_frame = frame.f_back.f_back
-    caller_file = caller_frame.f_globals.get("__file__", "")
     
-    caller_path = Path(caller_file)
-    return caller_path.stem
+    # Walk up the stack to find first frame outside test_tools.py
+    current_file = Path(__file__).resolve()
+    while frame:
+        frame = frame.f_back
+        if frame:
+            caller_file = frame.f_globals.get("__file__", "")
+            caller_path = Path(caller_file).resolve()
+            
+            # Return first caller outside test_tools.py
+            if caller_path != current_file:
+                return caller_path.stem
+    
+    return "unknown"
 
 
 def _get_input_path(filename: str) -> Path:
@@ -176,3 +200,37 @@ def save(data: Any, filename: str = None, save_data_path: str = None) -> None:
     filepath.parent.mkdir(parents=True, exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def load_output(pattern: str = None, latest: bool = True) -> Any:
+    """
+    Load JSON from tests/data_output/
+    
+    Args:
+        pattern: Module name pattern (default: auto-detect from caller)
+        latest: Load latest file if multiple matches (default: True)
+    
+    Returns:
+        Loaded JSON data
+    
+    Example:
+        # Load latest output from example_action_studio_login
+        data = load_output("example_action_studio_login")
+        
+        # Load oldest output
+        data = load_output("example_action_studio_login", latest=False)
+    """
+    if pattern is None:
+        pattern = _get_caller_info()
+    
+    output_files = sorted(OUTPUT_DIR.glob(f"{pattern}_*.json"))
+    
+    if not output_files:
+        raise FileNotFoundError(
+            f"No output files found: {OUTPUT_DIR}/{pattern}_*.json"
+        )
+    
+    target_file = output_files[-1] if latest else output_files[0]
+    
+    with open(target_file, "r", encoding="utf-8") as f:
+        return json.load(f)

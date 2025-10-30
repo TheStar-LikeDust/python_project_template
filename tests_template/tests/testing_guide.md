@@ -2,6 +2,19 @@
 
 Simple three-layer TDD workflow: **Examples → Integrations → Unittests**
 
+## Quick Reference
+
+| Action | Path/Command |
+|--------|-------------|
+| Example file | `tests/examples/example_{feature}.py` |
+| Function name | `{feature}_main()` |
+| Input data | `tests/data_input/example_{feature}.json` |
+| Local input | `tests/data_input_local/example_{feature}.json` |
+| Output file | `tests/data_output/example_{feature}_{timestamp}.json` |
+| Load input | `load()` |
+| Load output | `load_output("example_feature")` |
+| Save output | `save(data)` |
+
 ## TDD Development Flow
 
 ### Step 1: Write Example (Executable Demo)
@@ -20,16 +33,16 @@ Extract and test individual functions with boundary conditions.
 ### File Names
 - Example files: `example_{feature}.py`
 - Function name: `{feature}_main()`
-- Input template: `data_input/example_{feature}.json.template`
+- Input data: `data_input/example_{feature}.json`
 - Local input: `data_input_local/example_{feature}.json`
 - Output: `data_output/example_{feature}_{timestamp}.json`
 
 ### Test Data
-- Templates use `.json.template` suffix (git tracked, empty values)
-- Local files use `.json` (git ignored, actual values)
+- Input files: `data_input/*.json` (git tracked, empty values)
+- Local files: `data_input_local/*.json` (git ignored, actual values)
 - All JSON use 2-space indentation
 - Keep data minimal and focused
-- No sensitive data in templates
+- No sensitive data in input files
 
 ---
 
@@ -37,17 +50,35 @@ Extract and test individual functions with boundary conditions.
 
 ```
 tests/
-├── data_input/              # Git-tracked standard inputs
-│   └── {module}.json        # Input templates (use .template suffix)
-├── data_input_local/        # Your local input overrides (not tracked)
-│   └── {module}.json        # Your modified inputs
-├── data_output/             # Auto-generated outputs (not tracked)
-│   └── {module}_{timestamp}.json
-├── examples/                # Runnable demos
-├── integrations/            # Integration tests
-├── unittests/               # Unit tests
-└── test_tools.py            # Shared utilities
+├── data_input/                      # Git-tracked (default test data)
+│   ├── example_feature.json
+│   └── README.md
+├── data_input_local/                # Git ignored (your data)
+│   └── example_feature.json
+├── data_output/                     # Git ignored (auto-generated)
+│   ├── example_feature_20251030_110530.json
+│   └── example_feature_20251030_112015.json
+├── examples/
+│   ├── example_feature.py
+│   └── example_step2.py
+├── integrations/
+│   └── test_example_feature.py
+├── unittests/
+│   └── test_feature.py
+└── test_tools.py
 ```
+
+### Git Configuration
+
+Add to your `.gitignore`:
+
+```gitignore
+# Test data - local overrides and outputs
+tests/data_input_local/
+tests/data_output/
+```
+
+**Note:** `tests/data_input/*.json` files are tracked (default test data).
 
 ---
 
@@ -68,10 +99,14 @@ def feature_main():
     input_data = load()
     
     # Step 1: Process data
-    result = process(input_data)
+    param1 = input_data.get('param1')
+    param2 = input_data.get('param2')
     
     # Step 2: Generate output
-    output_data = {"result": result}
+    output_data = {
+        "result": f"{param1}_{param2}",
+        "status": "success"
+    }
     
     save(output_data)
 
@@ -80,9 +115,9 @@ if __name__ == "__main__":
     feature_main()
 ```
 
-### Input Template
+### Input Data
 
-Create `data_input/example_feature.json.template`:
+Create `data_input/example_feature.json`:
 
 ```json
 {
@@ -114,6 +149,11 @@ Create `data_input/example_feature.json.template`:
 - Auto-generates path: `data_output/{module}_{timestamp}.json`
 - Uses `--output` CLI arg if provided, else module name
 
+**`load_output(pattern=None, latest=True)`**
+- Load previous output from `data_output/`
+- Pattern defaults to caller module name
+- Latest=True loads most recent file (by timestamp)
+
 ### Path Priority
 
 ```
@@ -144,11 +184,11 @@ python tests/examples/example_feature.py --input-data '{"test": 1}' --output res
 ### Setup Workflow
 
 ```bash
-# 1. Copy template to local
-cp tests/data_input/example_feature.json.template tests/data_input_local/example_feature.json
+# 1. Copy to local
+cp tests/data_input/example_feature.json tests/data_input_local/example_feature.json
 
-# 2. Edit local file with actual values
-# vim/nano/editor tests/data_input_local/example_feature.json
+# 2. Edit with actual values
+vim tests/data_input_local/example_feature.json
 
 # 3. Run example
 python tests/examples/example_feature.py
@@ -157,18 +197,59 @@ python tests/examples/example_feature.py
 ls tests/data_output/
 ```
 
+### Pipeline Example
+
+Chain multiple examples using `load_output()`:
+
+```python
+# example_step2.py
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from tests.test_tools import load, load_output, save
+
+def step2_main():
+    input_data = load()
+    step1_result = load_output("example_step1")
+    
+    # Step 1: Combine inputs
+    combined_data = {
+        "input": input_data,
+        "previous": step1_result,
+        "status": "processed"
+    }
+    
+    save(combined_data)
+
+if __name__ == "__main__":
+    step2_main()
+```
+
 ---
 
 ## Integration & Unit Tests
 
 ### Integration Tests
-Verify examples produce expected outputs. Use `pytest` to run examples and compare results.
+Verify examples produce expected outputs.
 
 ```python
 # tests/integrations/test_example_feature.py
+import subprocess
+from tests.test_tools import load_output
+
 def test_feature_output():
-    # Run example and verify output structure
-    pass
+    # Run example
+    result = subprocess.run(
+        ["python", "tests/examples/example_feature.py",
+         "--input-data", '{"param1":"test","param2":"value"}'],
+        capture_output=True
+    )
+    
+    # Load and check output
+    output = load_output("example_feature")
+    print(f"Output: {output}")
 ```
 
 ### Unit Tests
@@ -177,11 +258,44 @@ Test individual functions with edge cases.
 ```python
 # tests/unittests/test_feature.py
 def test_function_edge_case():
-    # Test boundary conditions
-    pass
+    result = process_data(None)
+    print(f"Result: {result}")
 ```
 
 Keep tests simple and focused.
+
+---
+
+## Troubleshooting
+
+### FileNotFoundError: No input found
+
+**Problem:** `load()` cannot find input file
+
+**Solutions:**
+1. Copy to local: `cp tests/data_input/example_feature.json tests/data_input_local/example_feature.json`
+2. Use CLI: `--input-data '{"key":"value"}'`
+3. Check file name matches module name
+
+### No output files found
+
+**Problem:** `load_output()` cannot find previous output
+
+**Solutions:**
+1. Run the example first to generate output
+2. Check pattern matches module name exactly
+3. Verify files exist: `ls tests/data_output/`
+
+### Import errors
+
+**Problem:** Cannot import project modules
+
+**Solution:** Add path setup in example file:
+```python
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+```
 
 ---
 

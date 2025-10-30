@@ -7,6 +7,20 @@ Provides basic file operations with smart paths:
 - data_output: Auto-generated outputs with timestamps
 
 Auto-detects caller module for organized file structure
+
+File Naming Convention:
+- Example files: example_{feature}.py
+- Function name: {feature}_main()
+- Input template: data_input/example_{feature}.json.template
+- Local input: data_input_local/example_{feature}.json
+- Output: data_output/example_{feature}_{timestamp}.json
+
+Test Data Convention:
+- Template files use .json.template suffix (git tracked)
+- Template contains empty/placeholder values
+- Local files are .json (git ignored, user fills actual values)
+- All JSON files use 2-space indentation
+- Keep test data minimal and focused
 """
 
 import argparse
@@ -45,23 +59,19 @@ def _get_cli_args() -> argparse.Namespace:
     return _parsed_args
 
 
-def _get_caller_info() -> Tuple[str, str]:
+def _get_caller_info() -> str:
     """
-    Get caller module info from call stack
+    Get caller module name from call stack
     
     Returns:
-        (package_name, module_name) e.g., ("examples", "01_basic_example")
+        module_name e.g., "example_action_studio_login"
     """
     frame = inspect.currentframe()
     caller_frame = frame.f_back.f_back
     caller_file = caller_frame.f_globals.get("__file__", "")
     
     caller_path = Path(caller_file)
-    module_name = caller_path.stem
-    
-    package_name = caller_path.parent.name
-    
-    return package_name, module_name
+    return caller_path.stem
 
 
 def _get_input_path(filename: str) -> Path:
@@ -69,44 +79,44 @@ def _get_input_path(filename: str) -> Path:
     Get input file path with input_local override support
     
     Priority:
-    1. tests/data_input_local/{package}/{module}/{filename}
-    2. tests/data_input/{package}/{module}/{filename}
+    1. tests/data_input_local/{module}.json
+    2. tests/data_input/{module}.json
     """
-    package_name, module_name = _get_caller_info()
+    module_name = _get_caller_info()
     
-    local_path = INPUT_LOCAL_DIR / package_name / module_name / filename
+    local_path = INPUT_LOCAL_DIR / f"{module_name}.json"
     if local_path.exists():
         return local_path
     
-    return INPUT_DIR / package_name / module_name / filename
+    return INPUT_DIR / f"{module_name}.json"
 
 
 def _get_output_path(filename: str) -> Path:
     """
     Generate output file path with timestamp
     
-    Format: tests/data_output/{package}_{module}_{timestamp}.json
+    Format: tests/data_output/{module}_{timestamp}.json
     """
-    package_name, module_name = _get_caller_info()
+    module_name = _get_caller_info()
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     base_name = Path(filename).stem
     ext = Path(filename).suffix or ".json"
     
-    output_filename = f"{package_name}_{module_name}_{timestamp}{ext}"
+    output_filename = f"{module_name}_{timestamp}{ext}"
     return OUTPUT_DIR / output_filename
 
 
 def load(filename: str = "data.json", input_data_path: str = None) -> Any:
     """
     Load JSON with priority:
-    1. tests/data_input_local/{package}/{module}/{filename}
-    2. tests/data_input/{package}/{module}/{filename}
+    1. tests/data_input_local/{module}.json
+    2. tests/data_input/{module}.json
     3. --input-data CLI argument (JSON string)
     4. Error if none found
     
     Args:
-        filename: File name under module's input directory (default: "data.json")
+        filename: Not used, kept for compatibility
         input_data_path: Manual override path (absolute or relative to TESTS_ROOT)
     """
     if input_data_path:
@@ -114,9 +124,9 @@ def load(filename: str = "data.json", input_data_path: str = None) -> Any:
         with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     
-    package_name, module_name = _get_caller_info()
-    local_path = INPUT_LOCAL_DIR / package_name / module_name / filename
-    standard_path = INPUT_DIR / package_name / module_name / filename
+    module_name = _get_caller_info()
+    local_path = INPUT_LOCAL_DIR / f"{module_name}.json"
+    standard_path = INPUT_DIR / f"{module_name}.json"
     
     if local_path.exists():
         with open(local_path, "r", encoding="utf-8") as f:
@@ -156,8 +166,7 @@ def save(data: Any, filename: str = None, save_data_path: str = None) -> None:
             if args.output:
                 filename = args.output
             else:
-                _, module_name = _get_caller_info()
-                filename = module_name
+                filename = _get_caller_info()
         
         if not filename.endswith('.json'):
             filename = f"{filename}.json"

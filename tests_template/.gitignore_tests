@@ -1,0 +1,7 @@
+# Local input overrides (user-modified test inputs)
+tests/data_input_local/*
+!tests/data_input_local/.gitkeep
+
+# Test outputs
+tests/data_output/*
+!tests/data_output/.gitkeep

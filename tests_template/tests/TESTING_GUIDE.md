@@ -1,280 +1,144 @@
 # Testing Framework Guide
 
-A lightweight testing structure following the TDD workflow: **examples → integrations → unittests**.
+Simple three-layer TDD workflow: **Examples → Integrations → Unittests**
 
-## Overview
+## TDD Development Flow
 
-This testing framework emphasizes simplicity, determinism, and reusability. Each layer serves a specific purpose in the development cycle.
+### Step 1: Write Example (Executable Demo)
+Create runnable code in `examples/` that demonstrates the feature.
 
-### Three-Layer Structure
+### Step 2: Integration Test (Verify Output)
+Write integration tests to verify example outputs match expectations.
+
+### Step 3: Unit Tests (Edge Cases)
+Extract and test individual functions with boundary conditions.
+
+---
+
+## Directory Structure
 
 ```
 tests/
-├── examples/       # Runnable demos that generate baseline outputs
-├── integrations/   # Integration tests comparing against baselines
-├── unittests/      # Unit tests for isolated functions
-└── test_tools.py   # Shared testing utilities
+├── data_input/         # Git-tracked standard inputs
+├── data_input_local/   # Your local input overrides (not tracked)
+├── data_output/        # Auto-generated outputs (not tracked)
+├── examples/           # Runnable demos
+├── integrations/       # Integration tests
+├── unittests/          # Unit tests
+└── test_tools.py       # Shared utilities
 ```
 
-## Layer Details
+---
 
-### 1. Examples (`examples/`)
+## Example Template
 
-**Purpose**: Runnable code demonstrating functionality while generating test baselines.
+Minimal structure for `examples/01_my_feature.py`:
 
-**Key Characteristics**:
-- Each file is a standalone script with CLI support
-- Generates deterministic outputs (via seeds or mocks)
-- Saves JSON snapshots as baselines for integration tests
-- Doubles as documentation and demo code
-
-**Minimal Structure**:
 ```python
-# id: examples/01_basic_example
-# title: Basic functionality demo
-# level: basic
-# purpose: demo|test-input
-# deterministic: true
-# outputs: tests/data/example_output/01_baseline.json
+import sys
+from pathlib import Path
 
-import argparse
-import json
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-def core_logic(input_data, seed=None):
-    """Core function implementing the feature"""
-    return {"result": "processed"}
+from tests.test_tools import load, save
 
-def run(mode="demo", seed=None, output_dir=None, save_output=True):
-    """Main execution with configurable output"""
-    result = core_logic({}, seed)
-    assert "result" in result  # Basic validation
+
+def my_feature_main():
+    input_data = load()
     
-    if save_output and output_dir:
-        with open(f"{output_dir}/output.json", "w") as f:
-            json.dump(result, f)
+    # Step 1: Process data
+    result = process(input_data)
     
-    print("=== Result ===")
-    print(result)
-    return result
+    # Step 2: Generate output
+    output_data = {"result": result, "status": "ok"}
+    
+    save(output_data)
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", default="demo")
-    parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--output-dir", default=None)
-    parser.add_argument("--save-output", action="store_true")
-    args = parser.parse_args()
-    
-    run(args.mode, args.seed, args.output_dir, args.save_output)
+    my_feature_main()
 ```
 
-**CLI Requirements**:
-- `--mode`: Execution mode (demo, ci_fast, smoke)
-- `--seed`: Random seed for determinism
-- `--output-dir`: Where to save outputs
-- `--save-output`: Flag to enable saving
+### Key Points
+- **Function name matches module** - `01_my_feature.py` → `my_feature_main()`
+- **No docstrings needed** - code speaks for itself
+- **Use `load()` and `save()`** - handles paths automatically
+- **Step comments** - mark logical sections
 
-### 2. Integrations (`integrations/`)
+---
 
-**Purpose**: Verify examples produce expected outputs by comparing against baselines.
+## Test Tools (`test_tools.py`)
 
-**Pattern**:
-```python
-import subprocess
-import json
-from tests.test_tools import load_baseline, compare_json_outputs
+### Basic Functions
 
-def test_example_01_baseline():
-    """Run example and verify against baseline"""
-    result = subprocess.run([
-        "python", "tests/examples/01_basic_example.py",
-        "--mode", "ci_fast",
-        "--seed", "42"
-    ], capture_output=True, text=True)
-    
-    output = json.loads(result.stdout)
-    baseline = load_baseline("01_baseline.json")
-    
-    assert compare_json_outputs(output, baseline, tolerance=0.01)
+**`load(filename="data.json", input_data_path=None)`**
+- Searches in priority order:
+  1. `data_input_local/{package}/{module}/{filename}` (your overrides)
+  2. `data_input/{package}/{module}/{filename}` (standard)
+  3. `--input-data` CLI argument (JSON string)
+
+**`save(data, filename=None, save_data_path=None)`**
+- Auto-generates path: `data_output/{package}_{module}_{timestamp}.json`
+- Uses `--output` CLI arg if provided, else module name
+
+### Path Priority
+
+```
+Load Priority:
+  data_input_local/  ← Your modifications (overrides everything)
+        ↓
+  data_input/        ← Standard inputs (git tracked)
+        ↓
+  --input-data       ← CLI JSON string (fallback)
+
+Save Location:
+  data_output/       ← Auto-generated with timestamp
 ```
 
-**Best Practices**:
-- Use `ci_fast` mode for speed
-- Always set `--seed` for determinism
-- Use fuzzy comparison for numeric/LLM outputs
-- Keep tests independent
+### CLI Arguments
 
-### 3. Unittests (`unittests/`)
-
-**Purpose**: Test individual functions in isolation with edge cases.
-
-**Pattern**:
-```python
-import pytest
-from tests.examples.01_basic_example import core_logic
-
-def test_core_logic_basic():
-    """Test normal case"""
-    result = core_logic({"input": "data"})
-    assert "result" in result
-
-def test_core_logic_empty():
-    """Test edge case: empty input"""
-    result = core_logic({})
-    assert result is not None
-
-def test_core_logic_deterministic():
-    """Test determinism with seed"""
-    result1 = core_logic({}, seed=42)
-    result2 = core_logic({}, seed=42)
-    assert result1 == result2
-```
-
-**Focus Areas**:
-- Boundary conditions
-- Error handling (when appropriate)
-- Determinism verification
-- Type validation
-
-## Shared Tools (`test_tools.py`)
-
-Common utilities for all test layers:
-- Baseline loading/saving
-- Output comparison (strict, fuzzy, field-based)
-- Mock data helpers
-- Determinism validators
-
-## TDD Workflow
-
-### Step 1: Write Example
 ```bash
-# Create example with baseline generation
-python tests/examples/01_example.py --mode demo --seed 42 \
-    --output-dir tests/data/example_output --save-output
+# Use JSON string input
+python example.py --input-data '{"key": "value"}'
+
+# Custom output filename
+python example.py --output my_result
+
+# Combined
+python example.py --input-data '{"test": 1}' --output result
 ```
 
-### Step 2: Create Integration Test
+---
+
+## Integration & Unit Tests
+
+### Integration Tests
+Verify examples produce expected outputs. Use `pytest` to run examples and compare results.
+
 ```python
-# Reference the baseline from step 1
-def test_example_01():
-    baseline = load_baseline("01_baseline.json")
-    # ... comparison logic
+# tests/integrations/test_example_01.py
+def test_example_output():
+    # Run example and verify output structure
+    pass
 ```
 
-### Step 3: Extract Unit Tests
+### Unit Tests
+Test individual functions with edge cases.
+
 ```python
-# Test core functions from the example
-from tests.examples.01_example import core_logic
-
-def test_core_logic():
-    # ... unit test logic
+# tests/unittests/test_feature.py
+def test_function_edge_case():
+    # Test boundary conditions
+    pass
 ```
 
-## Determinism Strategies
+Keep tests simple and focused. Detailed patterns available in code examples.
 
-### For Randomness
-Use `random.seed()` and `--seed` argument:
-```python
-import random
-
-def run(seed=None):
-    if seed:
-        random.seed(seed)
-    # ... rest of logic
-```
-
-### For LLM Outputs
-Three approaches (in priority order):
-1. **Mock** (preferred): Use pre-saved responses
-2. **Seeded**: Use temperature=0 and fixed prompts
-3. **Live**: Only for local debugging, skip in CI
-
-### For External APIs
-Mock responses during testing:
-```python
-# tests/data/mocks/api_response.json
-{"status": "ok", "data": {...}}
-```
-
-## Output Validation
-
-### Strict Comparison
-For deterministic outputs:
-```python
-assert output == baseline
-```
-
-### Fuzzy Comparison
-For numeric/similarity checks:
-```python
-from tests.test_tools import compare_with_tolerance
-
-assert compare_with_tolerance(output, baseline, threshold=0.95)
-```
-
-### Field-Based Validation
-For LLM outputs:
-```python
-# Check structure, not exact content
-assert "response" in output
-assert "timestamp" in output
-assert len(output["items"]) > 0
-```
+---
 
 ## Key Principles
 
-1. **KISS**: Simple, readable code over clever optimizations
-2. **Single Responsibility**: One example = one concept
-3. **Determinism**: Always reproducible with same seed/mock
-4. **Modularity**: Small functions, minimal dependencies
-5. **Let It Fail**: Don't hide errors, make them obvious
-
-## File Naming
-
-- Examples: `01_feature_name.py`, `02_another_feature.py`
-- Integrations: `test_example_01.py`, `test_example_02.py`
-- Unittests: `test_feature_name.py`
-- Baselines: `01_feature_name_baseline.json`
-
-## Common Patterns
-
-### Metadata Block
-```python
-# id: examples/01_example
-# title: Example title
-# level: basic|intermediate|advanced
-# purpose: demo|test-input
-# deterministic: true|false
-# mock_data: tests/data/mocks/example.json
-# outputs: tests/data/example_output/01_baseline.json
-# run_modes: [demo, ci_fast, smoke]
-```
-
-### Print Sections
-```python
-print("=== Part 1: Setup ===")
-# ... code
-print("=== Part 2: Processing ===")
-# ... code
-print("=== Part 3: Results ===")
-# ... code
-```
-
-### Minimal Validation
-```python
-# Not this:
-if not isinstance(data, dict):
-    raise ValueError("Data must be dict")
-if "key" not in data:
-    raise KeyError("Missing key")
-
-# This:
-result = data["key"]  # Let it fail naturally
-```
-
-## Next Steps
-
-1. Review example templates in `examples/`
-2. Check `test_tools.py` for available utilities
-3. Follow the TDD cycle for new features
-4. Keep it simple and readable
+1. **KISS** - Simple code over clever code
+2. **Let it fail** - Don't over-validate, let natural errors show
+3. **Modularity** - Small functions, clear purposes
+4. **Determinism** - Reproducible results with seeds/mocks

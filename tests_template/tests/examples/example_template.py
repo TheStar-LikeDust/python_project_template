@@ -26,6 +26,14 @@ def example_template_main():
     # step 2: delete the shelve
     shelve.close()
 
+    # step 3: result 
+    result = {
+        'shelve': 'example_template.shelve'
+    }
+
+    # optional: output
+    save(result)
+
 
 if __name__ == "__main__":
     example_template_main()

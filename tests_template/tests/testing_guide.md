@@ -52,9 +52,13 @@ Extract and test individual functions with boundary conditions.
 tests/
 ├── data_input/                      # Git-tracked (default test data)
 │   ├── example_feature.json
+│   ├── studio/                      # Supports nested folders
+│   │   └── example_studio_login.json
 │   └── README.md
 ├── data_input_local/                # Git ignored (your data)
-│   └── example_feature.json
+│   ├── example_feature.json
+│   └── custom_folder/               # Files can be in any subdirectory
+│       └── example_test.json
 ├── data_output/                     # Git ignored (auto-generated)
 │   ├── example_feature_20251030_110530.json
 │   └── example_feature_20251030_112015.json
@@ -67,6 +71,15 @@ tests/
 │   └── test_feature.py
 └── test_tools.py
 ```
+
+### Recursive File Search
+
+**Important:** The `load()` function recursively searches through all subdirectories in `data_input/` and `data_input_local/`. This means:
+
+- Files can be organized in nested folders (e.g., `data_input/studio/example_login.json`)
+- Files can be moved or renamed without breaking the search
+- If multiple files with the same name exist, the most recently modified one is used
+- The search only matches the filename, not the full path
 
 ### Git Configuration
 
@@ -140,10 +153,12 @@ Create `data_input/example_feature.json`:
 ### Basic Functions
 
 **`load(filename="data.json", input_data_path=None)`**
-- Searches in priority order:
-  1. `data_input_local/{module}.json` (your overrides)
-  2. `data_input/{module}.json` (standard)
+- Recursively searches in priority order:
+  1. `data_input_local/**/{module}.json` (your overrides, any subdirectory)
+  2. `data_input/**/{module}.json` (standard, any subdirectory)
   3. `--input-data` CLI argument (JSON string)
+- Supports nested folders - files can be in any subdirectory
+- If multiple matches found, uses the most recently modified file
 
 **`save(data, filename=None, save_data_path=None)`**
 - Auto-generates path: `data_output/{module}_{timestamp}.json`
@@ -157,16 +172,18 @@ Create `data_input/example_feature.json`:
 ### Path Priority
 
 ```
-Load Priority:
-  data_input_local/{module}.json  ← Your modifications (overrides everything)
+Load Priority (Recursive Search):
+  data_input_local/**/{module}.json  ← Your modifications (overrides, any folder)
         ↓
-  data_input/{module}.json        ← Standard inputs (git tracked)
+  data_input/**/{module}.json        ← Standard inputs (git tracked, any folder)
         ↓
-  --input-data                    ← CLI JSON string (fallback)
+  --input-data                       ← CLI JSON string (fallback)
 
 Save Location:
   data_output/{module}_{timestamp}.json  ← Auto-generated with timestamp
 ```
+
+**Note:** The `**` pattern means recursive search through all subdirectories. Files can be organized in folders like `studio/`, `api/`, etc.
 
 ### CLI Arguments
 

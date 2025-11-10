@@ -2,17 +2,18 @@
 Shared testing utilities
 
 Provides basic file operations with smart paths:
-- data_input: Git-tracked standard inputs
+- data_input: Git-tracked standard inputs (supports nested folders)
 - data_input_local: User-modified inputs (overrides data_input, not tracked)
 - data_output: Auto-generated outputs with timestamps
 
 Auto-detects caller module for organized file structure
+Recursively searches subdirectories for flexible file organization
 
 File Naming Convention:
 - Example files: example_{feature}.py
 - Function name: {feature}_main()
-- Input data: data_input/example_{feature}.json
-- Local input: data_input_local/example_{feature}.json
+- Input data: data_input/**/example_{feature}.json (recursive search)
+- Local input: data_input_local/**/example_{feature}.json (recursive search)
 - Output: data_output/example_{feature}_{timestamp}.json
 
 Test Data Convention:
@@ -20,6 +21,8 @@ Test Data Convention:
 - Local files are .json (git ignored, actual values)
 - All JSON files use 2-space indentation
 - Keep test data minimal and focused
+- Files can be organized in subdirectories (e.g., studio/, api/)
+- If multiple same-name files exist, uses most recently modified
 """
 
 import argparse
@@ -101,17 +104,25 @@ def _get_caller_info() -> str:
 def _get_input_path(filename: str) -> Path:
     """
     Get input file path with input_local override support
+    Recursively searches through subdirectories
     
     Priority:
-    1. tests/data_input_local/{module}.json
-    2. tests/data_input/{module}.json
+    1. tests/data_input_local/**/{module}.json (recursive)
+    2. tests/data_input/**/{module}.json (recursive)
     """
     module_name = _get_caller_info()
     
-    local_path = INPUT_LOCAL_DIR / f"{module_name}.json"
-    if local_path.exists():
-        return local_path
+    # Search in data_input_local (recursive)
+    local_matches = list(INPUT_LOCAL_DIR.glob(f"**/{module_name}.json"))
+    if local_matches:
+        return local_matches[0] if len(local_matches) == 1 else max(local_matches, key=lambda p: p.stat().st_mtime)
     
+    # Search in data_input (recursive)
+    standard_matches = list(INPUT_DIR.glob(f"**/{module_name}.json"))
+    if standard_matches:
+        return standard_matches[0] if len(standard_matches) == 1 else max(standard_matches, key=lambda p: p.stat().st_mtime)
+    
+    # Fallback to root level path
     return INPUT_DIR / f"{module_name}.json"
 
 
@@ -134,10 +145,13 @@ def _get_output_path(filename: str) -> Path:
 def load(filename: str = "data.json", input_data_path: str = None) -> Any:
     """
     Load JSON with priority:
-    1. tests/data_input_local/{module}.json
-    2. tests/data_input/{module}.json
+    1. tests/data_input_local/**/{module}.json (recursive search)
+    2. tests/data_input/**/{module}.json (recursive search)
     3. --input-data CLI argument (JSON string)
     4. Error if none found
+    
+    Recursively searches through all subdirectories, allowing flexible file organization.
+    If multiple matches found, uses the most recently modified file.
     
     Args:
         filename: Not used, kept for compatibility
@@ -149,25 +163,30 @@ def load(filename: str = "data.json", input_data_path: str = None) -> Any:
             return json.load(f)
     
     module_name = _get_caller_info()
-    local_path = INPUT_LOCAL_DIR / f"{module_name}.json"
-    standard_path = INPUT_DIR / f"{module_name}.json"
     
-    if local_path.exists():
-        with open(local_path, "r", encoding="utf-8") as f:
+    # Search in data_input_local (recursive)
+    local_matches = list(INPUT_LOCAL_DIR.glob(f"**/{module_name}.json"))
+    if local_matches:
+        filepath = local_matches[0] if len(local_matches) == 1 else max(local_matches, key=lambda p: p.stat().st_mtime)
+        with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     
-    if standard_path.exists():
-        with open(standard_path, "r", encoding="utf-8") as f:
+    # Search in data_input (recursive)
+    standard_matches = list(INPUT_DIR.glob(f"**/{module_name}.json"))
+    if standard_matches:
+        filepath = standard_matches[0] if len(standard_matches) == 1 else max(standard_matches, key=lambda p: p.stat().st_mtime)
+        with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     
+    # Fallback to CLI argument
     args = _get_cli_args()
     if args.input_data:
         return json.loads(args.input_data)
     
     raise FileNotFoundError(
-        f"No input found:\n"
-        f"  - {local_path}\n"
-        f"  - {standard_path}\n"
+        f"No input found for '{module_name}.json' in:\n"
+        f"  - {INPUT_LOCAL_DIR}/** (recursive)\n"
+        f"  - {INPUT_DIR}/** (recursive)\n"
         f"  - --input-data CLI argument"
     )
 

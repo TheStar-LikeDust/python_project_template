@@ -52,9 +52,13 @@
 tests/
 ├── data_input/                      # Git 跟踪（默认测试数据）
 │   ├── example_feature.json
+│   ├── studio/                      # 支持嵌套文件夹
+│   │   └── example_studio_login.json
 │   └── README.md
 ├── data_input_local/                # Git 忽略（你的数据）
-│   └── example_feature.json
+│   ├── example_feature.json
+│   └── custom_folder/               # 文件可以在任意子目录中
+│       └── example_test.json
 ├── data_output/                     # Git 忽略（自动生成）
 │   ├── example_feature_20251030_110530.json
 │   └── example_feature_20251030_112015.json
@@ -67,6 +71,15 @@ tests/
 │   └── test_feature.py
 └── test_tools.py
 ```
+
+### 递归文件搜索
+
+**重要：** `load()` 函数会递归搜索 `data_input/` 和 `data_input_local/` 下的所有子目录。这意味着：
+
+- 文件可以组织在嵌套的文件夹中（例如 `data_input/studio/example_login.json`）
+- 文件可以移动或重命名而不会破坏搜索
+- 如果存在多个同名文件，使用最近修改的那个
+- 搜索只匹配文件名，不匹配完整路径
 
 ### Git 配置
 
@@ -140,10 +153,12 @@ if __name__ == "__main__":
 ### 基本函数
 
 **`load(filename="data.json", input_data_path=None)`**
-- 按优先级搜索：
-  1. `data_input_local/{module}.json` （你的覆盖）
-  2. `data_input/{module}.json` （标准）
+- 递归搜索，按优先级：
+  1. `data_input_local/**/{module}.json` （你的覆盖，任意子目录）
+  2. `data_input/**/{module}.json` （标准，任意子目录）
   3. `--input-data` CLI 参数（JSON 字符串）
+- 支持嵌套文件夹 - 文件可以在任意子目录中
+- 如果找到多个匹配文件，使用最近修改的文件
 
 **`save(data, filename=None, save_data_path=None)`**
 - 自动生成路径：`data_output/{module}_{timestamp}.json`
@@ -157,16 +172,18 @@ if __name__ == "__main__":
 ### 路径优先级
 
 ```
-加载优先级：
-  data_input_local/{module}.json  ← 你的修改（覆盖所有）
+加载优先级（递归搜索）：
+  data_input_local/**/{module}.json  ← 你的修改（覆盖所有，任意文件夹）
         ↓
-  data_input/{module}.json        ← 标准输入（git 跟踪）
+  data_input/**/{module}.json        ← 标准输入（git 跟踪，任意文件夹）
         ↓
-  --input-data                    ← CLI JSON 字符串（回退）
+  --input-data                       ← CLI JSON 字符串（回退）
 
 保存位置：
   data_output/{module}_{timestamp}.json  ← 自动生成带时间戳
 ```
+
+**注意：** `**` 模式表示递归搜索所有子目录。文件可以组织在 `studio/`、`api/` 等文件夹中。
 
 ### CLI 参数
 
